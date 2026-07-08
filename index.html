@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KBA Car Rental</title>
+    <link rel="preconnect" href="https://images.unsplash.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap">
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Menu chính">
+        <a class="brand" href="#">
+          <img src="Logo%20KBA.png" alt="KBA Car Rental">
+          <span>KBA CAR<br>RENTAL</span>
+        </a>
+
+        <nav class="nav-list">
+          <a class="active" href="#vehicles" aria-label="Trang chủ">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H4.5A1.5 1.5 0 0 1 3 19.5v-9Z"/></svg>
+            <span>Trang chủ</span>
+          </a>
+          <a href="#vehicles" aria-label="Xe cho thuê">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16h14l-1.2-4.2A2.5 2.5 0 0 0 15.4 10H8.6a2.5 2.5 0 0 0-2.4 1.8L5 16Zm2 4a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm10 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4ZM7.5 8l1-3h7l1 3H7.5Z"/></svg>
+            <span>Xe cho thuê</span>
+          </a>
+          <a href="#booking" aria-label="Đặt xe">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v3h6V2h2v3h3v16H4V5h3V2Zm11 9H6v8h12v-8Z"/></svg>
+            <span>Đặt xe</span>
+          </a>
+          <a href="#customer-form" aria-label="Khách hàng">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm-9 9a9 9 0 0 1 18 0H3Z"/></svg>
+            <span>Khách hàng</span>
+          </a>
+          <button type="button" id="loginNav" aria-label="Đăng nhập quản trị">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7 9.6 8.4 12.2 11H2v2h10.2l-2.6 2.6L11 17l5-5-5-5Zm9-4H12a2 2 0 0 0-2 2v3h2V5h8v14h-8v-3h-2v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z"/></svg>
+            <span>Đăng nhập</span>
+          </button>
+          <button type="button" id="manageNav" aria-label="Quản lý xe" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm1 6v4h3l-5 6v-4H8l5-6Z"/></svg>
+            <span>Quản lý</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span>Hotline</span>
+          <strong>0900 000 000</strong>
+        </div>
+      </aside>
+
+      <main class="main-layout">
+        <section class="filters" aria-label="Bộ lọc xe">
+          <div class="filter-head">
+            <strong>Lọc xe</strong>
+            <button id="resetFilters" type="button">Đặt lại</button>
+          </div>
+
+          <label class="search-box">
+            <span>Tìm model xe</span>
+            <input id="searchInput" type="search" placeholder="VF3, CRV, MG...">
+          </label>
+
+          <div class="filter-group">
+            <p>Ngày dự kiến thuê</p>
+            <div class="date-grid filter-dates">
+              <label>
+                Từ ngày
+                <input id="filterStartDate" type="date">
+              </label>
+              <label>
+                Đến ngày
+                <input id="filterEndDate" type="date">
+              </label>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <p>Loại xe</p>
+            <div class="segmented" role="group" aria-label="Loại xe">
+              <button class="active" type="button" data-filter-type="all">Tất cả</button>
+              <button type="button" data-filter-type="electric">Xe điện</button>
+              <button type="button" data-filter-type="gasoline">Xăng</button>
+            </div>
+          </div>
+
+          <label class="toggle-row">
+            <span>Chỉ xe còn sẵn</span>
+            <input id="availableOnly" type="checkbox">
+          </label>
+
+          <div class="filter-group">
+            <p>Khoảng giá / ngày</p>
+            <input id="priceRange" type="range" min="500000" max="2200000" step="50000" value="2200000">
+            <div class="range-labels">
+              <span>500.000đ</span>
+              <strong id="priceLabel">2.200.000đ</strong>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <p>Năm sản xuất</p>
+            <div class="check-grid" id="yearFilters"></div>
+          </div>
+
+          <div class="filter-group">
+            <p>Màu xe</p>
+            <div class="check-grid" id="colorFilters"></div>
+          </div>
+        </section>
+
+        <section class="content" id="vehicles">
+          <header class="topbar">
+            <div>
+              <h1><span id="vehicleCount">0</span> xe đang sẵn sàng</h1>
+            </div>
+            <div class="topbar-actions">
+              <span id="todayLabel"></span>
+            </div>
+          </header>
+
+          <div id="vehicleGrid" class="vehicle-grid" aria-live="polite"></div>
+          <p id="emptyState" class="empty-state" hidden>Không tìm thấy xe phù hợp với bộ lọc hiện tại.</p>
+
+          <section class="admin-panel" id="admin" hidden>
+            <div class="admin-dashboard" id="adminDashboard">
+              <div class="admin-head">
+                <h2>Quản lý xe cho thuê</h2>
+                <button id="adminLogout" class="ghost-button" type="button">Đăng xuất</button>
+              </div>
+
+              <form id="vehicleAdminForm" class="vehicle-admin-form">
+                <label class="wide">Mã xe (đặt tên file ảnh theo mã này)
+                  <input id="adminCarCode" placeholder="VD: VF3-51A47735" required>
+                </label>
+                <label>Model xe<input id="adminCarName" required></label>
+                <label>Năm sản xuất<input id="adminCarYear" required type="number" min="2000" max="2035"></label>
+                <label>Màu xe<input id="adminCarColor" required></label>
+                <label>Giá thuê / ngày<input id="adminCarRate" required type="number" min="0" step="50000"></label>
+                <label>Số chỗ<input id="adminCarSeats" required type="number" min="2" max="16"></label>
+                <label>Nhiên liệu
+                  <select id="adminCarFuel">
+                    <option value="electric">Xe điện</option>
+                    <option value="gasoline">Xăng</option>
+                  </select>
+                </label>
+                <label>Trạng thái
+                  <select id="adminCarStatus">
+                    <option value="available">Còn sẵn</option>
+                    <option value="maintenance">Đang bảo dưỡng (khóa chọn)</option>
+                  </select>
+                </label>
+                <label>Ghi chú trạng thái<input id="adminCarStatusNote" placeholder="VD: Bảo dưỡng đến 15/07"></label>
+                <p class="admin-hint wide">
+                  <strong>Thư viện ảnh:</strong> đặt file vào <code>assets/cars/</code> với tên đúng bằng <strong>Mã xe</strong>
+                  (<code>.jpg</code>, <code>.png</code>, <code>.webp</code>). Ví dụ <code>VF3-51A47735.jpg</code> sẽ tự hiển thị.
+                  <br><strong>Nhiều ảnh 1 xe:</strong> thêm các file <code>&lt;Mã&gt;-2.jpg</code>, <code>&lt;Mã&gt;-3.jpg</code>… hoặc dán link vào ô "Ảnh phụ".
+                  Khách bấm vào ảnh sẽ phóng to và tự chuyển qua các ảnh.
+                </p>
+                <label class="wide">Tải ảnh chính (xem ngay)
+                  <input id="adminCarImageFile" type="file" accept="image/*">
+                </label>
+                <label class="wide">Ảnh chính URL (tùy chọn)<input id="adminCarImage" type="url" placeholder="https://..."></label>
+                <label class="wide">Ảnh phụ — mỗi dòng 1 link (tùy chọn)
+                  <textarea id="adminCarImages" placeholder="https://anh-2.jpg&#10;https://anh-3.jpg"></textarea>
+                </label>
+                <img id="adminImgPreview" class="img-preview" alt="Xem trước ảnh xe" hidden>
+                <label class="wide">Lịch bận<input id="adminCarRanges" placeholder="2026-07-10:2026-07-12, 2026-08-01:2026-08-03"></label>
+                <div class="admin-actions">
+                  <button class="primary-button" type="submit">Lưu xe</button>
+                  <button id="clearAdminForm" class="ghost-button" type="button">Thêm mới</button>
+                </div>
+              </form>
+
+              <div id="adminCarList" class="admin-car-list"></div>
+            </div>
+          </section>
+        </section>
+
+        <aside class="booking-panel" id="booking" aria-label="Thông tin đặt xe">
+          <div class="booking-card">
+            <h2 id="bookingTitle">Chọn một xe</h2>
+            <p id="bookingSub"></p>
+
+            <div class="selected-car" id="selectedCarPreview" hidden></div>
+
+            <div class="date-grid">
+              <label>
+                Ngày bắt đầu
+                <input id="startDate" type="date">
+              </label>
+              <label>
+                Ngày kết thúc
+                <input id="endDate" type="date">
+              </label>
+            </div>
+
+            <div class="price-box">
+              <span>Tạm tính</span>
+              <strong id="totalPrice">0đ</strong>
+              <small id="priceNote">Chọn xe và ngày thuê để xem giá.</small>
+            </div>
+
+            <label class="accept-row">
+              <input id="acceptPrice" type="checkbox">
+              <span>Tôi chấp nhận giá hiển thị và muốn gửi thông tin thuê xe.</span>
+            </label>
+          </div>
+
+          <form class="customer-form" id="customer-form" hidden>
+            <div class="form-head">
+              <p class="eyebrow">Thông tin khách hàng</p>
+              <h2>Form theo file DATA_KH.xlsx</h2>
+            </div>
+
+            <div class="form-grid">
+              <label>Họ và Tên<input required name="Họ và Tên" autocomplete="name"></label>
+              <label>Số CCCD/Passport<input required name="Số CCCD/Passport"></label>
+              <label>Ngày cấp CCCD<input required name="Ngày cấp CCCD" type="date"></label>
+              <label>Nơi cấp<input required name="Nơi cấp"></label>
+              <label class="wide">Địa chỉ thường trú<input required name="Địa chỉ thường trú"></label>
+              <label class="wide">Địa chỉ liên hệ<input required name="Địa chỉ liên hệ"></label>
+              <label>SĐT<input required name="SĐT" type="tel" autocomplete="tel"></label>
+              <label>Số GPLX<input required name="Số GPLX"></label>
+              <label>Ngày cấp GPLX<input required name="Ngày cấp GPLX" type="date"></label>
+              <label>Nơi cấp GPLX<input required name="Nơi cấp GPLX"></label>
+              <label>Số hợp đồng<input name="Số hợp đồng" placeholder="Tự tạo nếu bỏ trống"></label>
+              <label>Tiền còn lại APP<input name="Tiền còn lại APP" type="number" min="0" step="1000" placeholder="0"></label>
+            </div>
+
+            <button class="primary-button" type="submit">Gửi thông tin thuê xe</button>
+            <p id="formMessage" class="form-message" role="status"></p>
+          </form>
+        </aside>
+      </main>
+    </div>
+
+    <!-- Modal đăng nhập quản trị -->
+    <div class="modal-overlay" id="loginModal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="Đăng nhập quản trị">
+        <div class="modal-head">
+          <div>
+            <h2>Đăng nhập quản trị</h2>
+            <p>Chỉ dành cho quản lý xe của KBA.</p>
+          </div>
+          <button type="button" class="modal-close" id="loginModalClose" aria-label="Đóng">×</button>
+        </div>
+        <form id="adminLoginForm" class="admin-login-form">
+          <label>ID<input id="adminId" required autocomplete="username"></label>
+          <label>Password<input id="adminPassword" required type="password" autocomplete="current-password"></label>
+          <label>Gmail xác nhận<input id="adminGmail" required type="email" autocomplete="email"></label>
+          <button class="primary-button" type="submit">Đăng nhập</button>
+          <p id="adminLoginMessage" class="form-message" role="status"></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- Lightbox phóng to ảnh xe -->
+    <div class="lightbox" id="lightbox" hidden>
+      <button type="button" class="lb-close" id="lbClose" aria-label="Đóng">×</button>
+      <div class="lightbox-stage">
+        <span class="lightbox-title" id="lbTitle"></span>
+        <button type="button" class="lb-btn lb-prev" id="lbPrev" aria-label="Ảnh trước">‹</button>
+        <img id="lbImage" alt="Ảnh xe" src="">
+        <button type="button" class="lb-btn lb-next" id="lbNext" aria-label="Ảnh sau">›</button>
+      </div>
+      <div class="lightbox-dots" id="lbDots"></div>
+    </div>
+
+    <script src="assets/config.js"></script>
+    <script src="assets/cars-data.js"></script>
+    <script src="assets/app.js"></script>
+    <script src="assets/lightbox.js"></script>
+  </body>
+</html>
