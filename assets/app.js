@@ -23,7 +23,8 @@ const DATA_FIELDS = [
   "Tổng giá thuê",
   "Số hợp đồng",
   "Tổng giá thuê APP",
-  "Tiền còn lại APP"
+  "Tài sản thế chấp",
+  "Tiền cọc (50%)"
 ];
 
 const FLEET_STORAGE_KEY = "kbaRentalFleet";
@@ -84,8 +85,7 @@ const state = {
   cars: [],
   selectedCar: null,
   filterType: "all",
-  selectedYears: new Set(),
-  selectedColors: new Set(),
+  filterSeats: "all",
   isAdmin: sessionStorage.getItem(ADMIN_SESSION_KEY) === "1"
 };
 
@@ -99,8 +99,6 @@ const els = {
   priceLabel: document.querySelector("#priceLabel"),
   filterStartDate: document.querySelector("#filterStartDate"),
   filterEndDate: document.querySelector("#filterEndDate"),
-  yearFilters: document.querySelector("#yearFilters"),
-  colorFilters: document.querySelector("#colorFilters"),
   resetFilters: document.querySelector("#resetFilters"),
   avgPrice: document.querySelector("#avgPrice"),
   todayLabel: document.querySelector("#todayLabel"),
@@ -108,7 +106,21 @@ const els = {
   bookingSub: document.querySelector("#bookingSub"),
   selectedCarPreview: document.querySelector("#selectedCarPreview"),
   startDate: document.querySelector("#startDate"),
+  startTime: document.querySelector("#startTime"),
   endDate: document.querySelector("#endDate"),
+  endTime: document.querySelector("#endTime"),
+  depositModal: document.querySelector("#depositModal"),
+  depositClose: document.querySelector("#depositClose"),
+  depositOffer: document.querySelector("#depositOffer"),
+  depositQr: document.querySelector("#depositQr"),
+  depositAmount: document.querySelector("#depositAmount"),
+  depositAmountQr: document.querySelector("#depositAmountQr"),
+  depositAccept: document.querySelector("#depositAccept"),
+  depositLater: document.querySelector("#depositLater"),
+  qrImage: document.querySelector("#qrImage"),
+  qrPlaceholder: document.querySelector("#qrPlaceholder"),
+  qrRef: document.querySelector("#qrRef"),
+  qrDone: document.querySelector("#qrDone"),
   totalPrice: document.querySelector("#totalPrice"),
   priceNote: document.querySelector("#priceNote"),
   acceptPrice: document.querySelector("#acceptPrice"),
@@ -182,6 +194,36 @@ function diffDays(start, end) {
   return Math.max(days, 1);
 }
 
+/* ---- Thuê theo ngày + giờ ----
+   Thời lượng tối thiểu 1 ngày. Phần lẻ tính theo giờ = giá ngày / 24. */
+function bookingStartMs() {
+  if (!els.startDate.value) return NaN;
+  return new Date(`${els.startDate.value}T${els.startTime.value || "00:00"}`).getTime();
+}
+
+function bookingEndMs() {
+  if (!els.endDate.value) return NaN;
+  return new Date(`${els.endDate.value}T${els.endTime.value || "00:00"}`).getTime();
+}
+
+function bookingDuration() {
+  const start = bookingStartMs();
+  const end = bookingEndMs();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  const totalHours = Math.max((end - start) / 3600000, 24); // tối thiểu 1 ngày
+  let days = Math.floor(totalHours / 24);
+  let hours = Math.ceil(totalHours - days * 24);
+  if (hours >= 24) { days += 1; hours = 0; }
+  return { days, hours, totalHours };
+}
+
+// Mặc định: kết thúc vào cùng giờ của ngày kế tiếp
+function syncDefaultEnd() {
+  if (!els.startDate.value) return;
+  els.endDate.value = addDays(els.startDate.value, 1);
+  els.endTime.value = els.startTime.value || "08:00";
+}
+
 function rangesOverlap(start, end, bookedStart, bookedEnd) {
   if (!start || !end || !bookedStart || !bookedEnd) return false;
   return dateOnly(start) <= dateOnly(bookedEnd) && dateOnly(end) >= dateOnly(bookedStart);
@@ -228,9 +270,13 @@ function isCarSelectable(car) {
 }
 
 function calcBooking() {
-  if (!state.selectedCar) return { days: 0, total: 0 };
-  const days = diffDays(els.startDate.value, els.endDate.value);
-  return { days, total: days * Number(state.selectedCar.dailyRate || 0) };
+  if (!state.selectedCar) return { days: 0, hours: 0, total: 0 };
+  const duration = bookingDuration();
+  if (!duration) return { days: 0, hours: 0, total: 0 };
+  const rate = Number(state.selectedCar.dailyRate || 0);
+  const hourRate = Math.round(rate / 24 / 1000) * 1000;
+  const total = duration.days * rate + duration.hours * hourRate;
+  return { days: duration.days, hours: duration.hours, total, hourRate };
 }
 
 function applyFleetStore() {
@@ -268,18 +314,7 @@ function deleteCar(code) {
   refreshAfterFleetChange();
 }
 
-function buildFilterOptions() {
-  const years = [...new Set(state.cars.map((car) => car.year).filter(Boolean))].sort((a, b) => b - a);
-  const colors = [...new Set(state.cars.map((car) => car.color).filter(Boolean))].sort();
-
-  els.yearFilters.innerHTML = years.map((year) => `
-    <label><input type="checkbox" value="${year}" data-year-filter> ${year}</label>
-  `).join("");
-
-  els.colorFilters.innerHTML = colors.map((color) => `
-    <label><input type="checkbox" value="${color}" data-color-filter> ${color}</label>
-  `).join("");
-}
+function buildFilterOptions() { /* Bộ lọc năm SX & màu xe đã được gỡ theo yêu cầu */ }
 
 function renderTimeline() { /* Đã gỡ khung timeline theo yêu cầu */ }
 
@@ -292,9 +327,9 @@ function getFilteredCars() {
     const matchesType = state.filterType === "all" || car.fuelType === state.filterType;
     const matchesAvailability = !els.availableOnly.checked || isCarSelectable(car);
     const matchesPrice = Number(car.dailyRate || 0) <= maxPrice;
-    const matchesYear = state.selectedYears.size === 0 || state.selectedYears.has(String(car.year));
-    const matchesColor = state.selectedColors.size === 0 || state.selectedColors.has(car.color);
-    return matchesTerm && matchesType && matchesAvailability && matchesPrice && matchesYear && matchesColor;
+    const matchesSeats = state.filterSeats === "all"
+      || (state.filterSeats === "7" ? Number(car.seats) >= 7 : Number(car.seats) === Number(state.filterSeats));
+    return matchesTerm && matchesType && matchesAvailability && matchesPrice && matchesSeats;
   });
 }
 
@@ -372,11 +407,17 @@ function renderBooking() {
     `;
   }
 
-  const { days, total } = calcBooking();
+  const { days, hours, total, hourRate } = calcBooking();
   els.totalPrice.textContent = formatMoney(total);
-  els.priceNote.textContent = car && days ? `${days} ngày x ${formatMoney(car.dailyRate)}` : "";
+  if (car && total) {
+    const parts = [`${days} ngày x ${formatMoney(car.dailyRate)}`];
+    if (hours) parts.push(`${hours} giờ x ${formatMoney(hourRate)}`);
+    els.priceNote.textContent = parts.join(" + ");
+  } else {
+    els.priceNote.textContent = "Chọn xe và thời gian thuê để xem giá.";
+  }
 
-  const canShowForm = Boolean(car && days && els.acceptPrice.checked);
+  const canShowForm = Boolean(car && total && els.acceptPrice.checked);
   els.customerForm.hidden = !canShowForm;
 }
 
@@ -544,16 +585,17 @@ function resetFilters() {
   els.availableOnly.checked = true;
   els.priceRange.value = els.priceRange.max;
   els.filterStartDate.value = todayIso();
-  els.filterEndDate.value = todayIso();
+  els.filterEndDate.value = addDays(todayIso(), 1);
   syncBookingDatesFromFilter();
+  els.startTime.value = els.startTime.value || "08:00";
+  syncDefaultEnd();
   state.filterType = "all";
-  state.selectedYears.clear();
-  state.selectedColors.clear();
+  state.filterSeats = "all";
   document.querySelectorAll("[data-filter-type]").forEach((button) => {
     button.classList.toggle("active", button.dataset.filterType === "all");
   });
-  document.querySelectorAll("[data-year-filter], [data-color-filter]").forEach((input) => {
-    input.checked = false;
+  document.querySelectorAll("[data-filter-seats]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.filterSeats === "all");
   });
   updatePriceLabel();
   renderTimeline();
@@ -569,6 +611,8 @@ function buildPayload(formData) {
   const car = state.selectedCar;
   const { total } = calcBooking();
   const contractNo = formData.get("Số hợp đồng") || `HD-${Date.now().toString().slice(-8)}`;
+  const startAt = `${els.startDate.value} ${els.startTime.value || "00:00"}`;
+  const endAt = `${els.endDate.value} ${els.endTime.value || "00:00"}`;
   const raw = {
     "STT": "",
     "Họ và Tên": formData.get("Họ và Tên"),
@@ -589,18 +633,47 @@ function buildPayload(formData) {
     "Ngày cấp GĐKX": car.registrationDate || "",
     "Tên chủ xe": car.owner || "",
     "Đơn Giá thuê": car.dailyRate,
-    "Ngày bắt đầu": els.startDate.value,
-    "Ngày kết thúc": els.endDate.value,
+    "Ngày bắt đầu": startAt,
+    "Ngày kết thúc": endAt,
     "Tổng giá thuê": total,
     "Số hợp đồng": contractNo,
     "Tổng giá thuê APP": total,
-    "Tiền còn lại APP": Number(formData.get("Tiền còn lại APP") || 0)
+    "Tài sản thế chấp": formData.get("Tài sản thế chấp") || "",
+    "Tiền cọc (50%)": Math.round(total / 2)
   };
 
   return DATA_FIELDS.reduce((payload, field) => {
     payload[field] = raw[field] ?? "";
     return payload;
   }, {});
+}
+
+/* ---- Popup ưu đãi đặt cọc + QR 50% ---- */
+function openDepositModal(depositValue, contractNo) {
+  els.depositAmount.textContent = formatMoney(depositValue);
+  els.depositAmountQr.textContent = formatMoney(depositValue);
+  els.qrRef.textContent = `${contractNo} DAT COC`;
+  els.depositOffer.hidden = false;
+  els.depositQr.hidden = true;
+  els.depositModal.hidden = false;
+}
+
+function showDepositQr() {
+  const qrUrl = window.APP_CONFIG?.DEPOSIT_QR_URL || "";
+  if (qrUrl) {
+    els.qrImage.src = qrUrl;
+    els.qrImage.hidden = false;
+    els.qrPlaceholder.hidden = true;
+  } else {
+    els.qrImage.hidden = true;
+    els.qrPlaceholder.hidden = false;
+  }
+  els.depositOffer.hidden = true;
+  els.depositQr.hidden = false;
+}
+
+function closeDepositModal() {
+  els.depositModal.hidden = true;
 }
 
 async function submitBooking(event) {
@@ -610,19 +683,26 @@ async function submitBooking(event) {
 
   const endpoint = window.APP_CONFIG?.GOOGLE_SHEET_ENDPOINT;
   const payload = buildPayload(new FormData(els.customerForm));
+  const depositValue = Number(payload["Tiền cọc (50%)"] || 0);
+  const contractNo = payload["Số hợp đồng"];
   const localBooking = { ...payload, carCode: state.selectedCar.code, savedAt: new Date().toISOString() };
   const saved = savedBookings();
   saved.push(localBooking);
   localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(saved));
 
-  if (!endpoint) {
+  const finishSuccess = (message) => {
     els.formMessage.classList.add("success");
-    els.formMessage.textContent = "Đã lưu tạm trên trình duyệt.";
+    els.formMessage.textContent = message;
     els.customerForm.reset();
     els.acceptPrice.checked = false;
     renderTimeline();
     renderCars();
     renderBooking();
+    openDepositModal(depositValue, contractNo);
+  };
+
+  if (!endpoint) {
+    finishSuccess("Đã lưu tạm trên trình duyệt.");
     return;
   }
 
@@ -633,13 +713,7 @@ async function submitBooking(event) {
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     });
-    els.formMessage.classList.add("success");
-    els.formMessage.textContent = "Đã gửi thông tin.";
-    els.customerForm.reset();
-    els.acceptPrice.checked = false;
-    renderTimeline();
-    renderCars();
-    renderBooking();
+    finishSuccess("Đã gửi thông tin.");
   } catch {
     els.formMessage.classList.add("error");
     els.formMessage.textContent = "Chưa gửi được dữ liệu.";
@@ -662,16 +736,14 @@ function bindEvents() {
     });
   });
 
-  els.yearFilters.addEventListener("change", (event) => {
-    if (!event.target.matches("[data-year-filter]")) return;
-    event.target.checked ? state.selectedYears.add(event.target.value) : state.selectedYears.delete(event.target.value);
-    renderCars();
-  });
-
-  els.colorFilters.addEventListener("change", (event) => {
-    if (!event.target.matches("[data-color-filter]")) return;
-    event.target.checked ? state.selectedColors.add(event.target.value) : state.selectedColors.delete(event.target.value);
-    renderCars();
+  document.querySelectorAll("[data-filter-seats]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.filterSeats = button.dataset.filterSeats;
+      document.querySelectorAll("[data-filter-seats]").forEach((item) => {
+        item.classList.toggle("active", item === button);
+      });
+      renderCars();
+    });
   });
 
   [els.searchInput, els.availableOnly].forEach((element) => element.addEventListener("input", renderCars));
@@ -682,8 +754,23 @@ function bindEvents() {
   [els.filterStartDate, els.filterEndDate].forEach((element) => {
     element.addEventListener("input", () => handleDateChange("filter"));
   });
-  [els.startDate, els.endDate].forEach((element) => {
+  [els.startDate, els.startTime].forEach((element) => {
+    element.addEventListener("input", () => {
+      syncDefaultEnd();
+      handleDateChange("booking");
+    });
+  });
+  [els.endDate, els.endTime].forEach((element) => {
     element.addEventListener("input", () => handleDateChange("booking"));
+  });
+
+  // Popup đặt cọc
+  els.depositAccept.addEventListener("click", showDepositQr);
+  els.depositLater.addEventListener("click", closeDepositModal);
+  els.depositClose.addEventListener("click", closeDepositModal);
+  els.qrDone.addEventListener("click", closeDepositModal);
+  els.depositModal.addEventListener("click", (event) => {
+    if (event.target === els.depositModal) closeDepositModal();
   });
   els.acceptPrice.addEventListener("input", renderBooking);
   els.resetFilters.addEventListener("click", resetFilters);
@@ -703,6 +790,7 @@ function bindEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.loginModal.hidden) closeLoginModal();
+    if (event.key === "Escape" && !els.depositModal.hidden) closeDepositModal();
   });
 
   els.adminLoginForm.addEventListener("submit", (event) => {
@@ -800,6 +888,10 @@ async function init() {
     input.min = today;
     input.value = today;
   });
+  // Giờ thuê mặc định 08:00, kết thúc cùng giờ ngày kế tiếp
+  els.startTime.value = "08:00";
+  syncDefaultEnd();
+  els.filterEndDate.value = els.endDate.value;
   updatePriceLabel();
 
   // Ưu tiên dữ liệu nhúng sẵn (chạy được khi mở trực tiếp index.html, không cần server).
@@ -836,3 +928,4 @@ init().catch((error) => {
   els.emptyState.hidden = false;
   els.emptyState.textContent = `Không tải được danh sách xe: ${error.message}`;
 });
+// KBA Car Rental v2 — thuê theo ngày + giờ, đặt cọc 50%, bộ lọc số chỗ.

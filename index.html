@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>KBA Car Rental</title>
+    <title>KBA Car Rental — Thuê xe tự lái</title>
     <link rel="preconnect" href="https://images.unsplash.com">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="assets/styles.css">
   </head>
   <body>
+    <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
+
     <div class="app-shell">
       <aside class="sidebar" aria-label="Menu chính">
         <a class="brand" href="#">
@@ -47,12 +49,12 @@
 
         <div class="sidebar-footer">
           <span>Hotline</span>
-          <strong>0900 000 000</strong>
+          <strong>0936 848 404</strong>
         </div>
       </aside>
 
       <main class="main-layout">
-        <section class="filters" aria-label="Bộ lọc xe">
+        <section class="filters glass-card" aria-label="Bộ lọc xe">
           <div class="filter-head">
             <strong>Lọc xe</strong>
             <button id="resetFilters" type="button">Đặt lại</button>
@@ -78,6 +80,16 @@
           </div>
 
           <div class="filter-group">
+            <p>Số chỗ ngồi</p>
+            <div class="segmented" role="group" aria-label="Số chỗ ngồi">
+              <button class="active" type="button" data-filter-seats="all">Tất cả</button>
+              <button type="button" data-filter-seats="4">4 chỗ</button>
+              <button type="button" data-filter-seats="5">5 chỗ</button>
+              <button type="button" data-filter-seats="7">7 chỗ</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
             <p>Loại xe</p>
             <div class="segmented" role="group" aria-label="Loại xe">
               <button class="active" type="button" data-filter-type="all">Tất cả</button>
@@ -99,16 +111,6 @@
               <strong id="priceLabel">2.200.000đ</strong>
             </div>
           </div>
-
-          <div class="filter-group">
-            <p>Năm sản xuất</p>
-            <div class="check-grid" id="yearFilters"></div>
-          </div>
-
-          <div class="filter-group">
-            <p>Màu xe</p>
-            <div class="check-grid" id="colorFilters"></div>
-          </div>
         </section>
 
         <section class="content" id="vehicles">
@@ -125,7 +127,7 @@
           <p id="emptyState" class="empty-state" hidden>Không tìm thấy xe phù hợp với bộ lọc hiện tại.</p>
 
           <section class="admin-panel" id="admin" hidden>
-            <div class="admin-dashboard" id="adminDashboard">
+            <div class="admin-dashboard glass-card" id="adminDashboard">
               <div class="admin-head">
                 <h2>Quản lý xe cho thuê</h2>
                 <button id="adminLogout" class="ghost-button" type="button">Đăng xuất</button>
@@ -180,27 +182,42 @@
         </section>
 
         <aside class="booking-panel" id="booking" aria-label="Thông tin đặt xe">
-          <div class="booking-card">
+          <div class="booking-card glass-card">
             <h2 id="bookingTitle">Chọn một xe</h2>
             <p id="bookingSub"></p>
 
             <div class="selected-car" id="selectedCarPreview" hidden></div>
 
-            <div class="date-grid">
-              <label>
-                Ngày bắt đầu
-                <input id="startDate" type="date">
-              </label>
-              <label>
-                Ngày kết thúc
-                <input id="endDate" type="date">
-              </label>
+            <div class="datetime-block">
+              <p class="dt-label">Bắt đầu thuê</p>
+              <div class="date-grid">
+                <label>
+                  Ngày
+                  <input id="startDate" type="date">
+                </label>
+                <label>
+                  Giờ
+                  <input id="startTime" type="time" step="1800">
+                </label>
+              </div>
+              <p class="dt-label">Kết thúc thuê</p>
+              <div class="date-grid">
+                <label>
+                  Ngày
+                  <input id="endDate" type="date">
+                </label>
+                <label>
+                  Giờ
+                  <input id="endTime" type="time" step="1800">
+                </label>
+              </div>
+              <p class="dt-hint">Mặc định: kết thúc vào cùng giờ của ngày kế tiếp (1 ngày thuê).</p>
             </div>
 
             <div class="price-box">
               <span>Tạm tính</span>
               <strong id="totalPrice">0đ</strong>
-              <small id="priceNote">Chọn xe và ngày thuê để xem giá.</small>
+              <small id="priceNote">Chọn xe và thời gian thuê để xem giá.</small>
             </div>
 
             <label class="accept-row">
@@ -209,10 +226,10 @@
             </label>
           </div>
 
-          <form class="customer-form" id="customer-form" hidden>
+          <form class="customer-form glass-card" id="customer-form" hidden>
             <div class="form-head">
-              <p class="eyebrow">Thông tin khách hàng</p>
-              <h2>Form theo file DATA_KH.xlsx</h2>
+              <p class="eyebrow">Đặt xe</p>
+              <h2>Thông tin khách hàng</h2>
             </div>
 
             <div class="form-grid">
@@ -226,15 +243,98 @@
               <label>Số GPLX<input required name="Số GPLX"></label>
               <label>Ngày cấp GPLX<input required name="Ngày cấp GPLX" type="date"></label>
               <label>Nơi cấp GPLX<input required name="Nơi cấp GPLX"></label>
-              <label>Số hợp đồng<input name="Số hợp đồng" placeholder="Tự tạo nếu bỏ trống"></label>
-              <label>Tiền còn lại APP<input name="Tiền còn lại APP" type="number" min="0" step="1000" placeholder="0"></label>
+              <label class="wide">Số hợp đồng<input name="Số hợp đồng" placeholder="Tự tạo nếu bỏ trống"></label>
             </div>
+
+            <fieldset class="collateral-group">
+              <legend>Tài sản thế chấp <span class="req">*</span></legend>
+              <label class="radio-card">
+                <input type="radio" name="Tài sản thế chấp" value="Tiền mặt 20 triệu" required>
+                <span>
+                  <strong>Tiền mặt 20 triệu</strong>
+                  <small>Hoàn lại đầy đủ khi trả xe</small>
+                </span>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="Tài sản thế chấp" value="Xe máy giá trị trên 20 triệu" required>
+                <span>
+                  <strong>Xe máy giá trị trên 20 triệu</strong>
+                  <small>Kèm giấy đăng ký xe chính chủ</small>
+                </span>
+              </label>
+            </fieldset>
 
             <button class="primary-button" type="submit">Gửi thông tin thuê xe</button>
             <p id="formMessage" class="form-message" role="status"></p>
           </form>
         </aside>
       </main>
+    </div>
+
+    <!-- Nút Hotline nổi góc dưới trái -->
+    <a class="floating-hotline" href="tel:0936848404" aria-label="Gọi hotline 0936 848 404">
+      <span class="hotline-ring" aria-hidden="true"></span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg>
+      <span class="hotline-text">
+        <small>Hotline 24/7</small>
+        <strong>0936 848 404</strong>
+      </span>
+    </a>
+
+    <!-- Icon mạng xã hội nổi góc dưới phải -->
+    <div class="social-float" aria-label="Mạng xã hội">
+      <a class="social-btn zalo" href="https://zalo.me/0936848404" target="_blank" rel="noopener" aria-label="Chat Zalo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.5 2 2 5.9 2 10.7c0 2.6 1.3 4.9 3.4 6.5-.1.9-.5 2.4-1.4 3.4-.2.2 0 .5.2.5 1.9-.2 3.6-1 4.5-1.6 1 .3 2.1.4 3.3.4 5.5 0 10-3.9 10-8.7S17.5 2 12 2Zm-4.2 11.5H5.5c-.3 0-.5-.2-.5-.5s.1-.5.3-.7l2.2-2.9H5.7c-.3 0-.6-.3-.6-.6s.3-.6.6-.6h2.1c.3 0 .5.2.5.5 0 .2 0 .4-.2.6l-2.2 3h1.9c.3 0 .6.3.6.6s-.3.6-.6.6Zm3 0c-.3 0-.6-.3-.6-.6V8.8c0-.3.3-.6.6-.6s.6.3.6.6v4.1c0 .3-.3.6-.6.6Zm5.8-.1c0 .3-.3.6-.6.6-.2 0-.4-.1-.5-.3-.3.2-.7.4-1.2.4-1.2 0-2.1-1-2.1-2.2s.9-2.2 2.1-2.2c.4 0 .8.1 1.2.4 0-.3.3-.5.6-.5s.6.3.6.6l-.1 3.2Zm-2.2-.5c.5 0 .9-.5.9-1s-.4-1-.9-1-.9.5-.9 1 .4 1 .9 1Zm5.2 1.1c-1.2 0-2.2-1-2.2-2.2s1-2.2 2.2-2.2 2.2 1 2.2 2.2-1 2.2-2.2 2.2Zm0-1.2c.5 0 .9-.5.9-1s-.4-1-.9-1-.9.5-.9 1 .4 1 .9 1Z"/></svg>
+      </a>
+      <a class="social-btn facebook" href="https://facebook.com/" target="_blank" rel="noopener" aria-label="Facebook">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12Z"/></svg>
+      </a>
+      <a class="social-btn tiktok" href="https://tiktok.com/" target="_blank" rel="noopener" aria-label="TikTok">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 5.8a4.8 4.8 0 0 1-1.1-3.1h-3.4v13.6a2.9 2.9 0 1 1-2.9-2.9c.3 0 .6 0 .9.1V10a6.3 6.3 0 1 0 5.4 6.2V9.4a8.1 8.1 0 0 0 4.6 1.4V7.4a4.8 4.8 0 0 1-3.5-1.6Z"/></svg>
+      </a>
+    </div>
+
+    <!-- Popup ưu đãi đặt cọc -->
+    <div class="modal-overlay" id="depositModal" hidden>
+      <div class="modal-card deposit-card" role="dialog" aria-modal="true" aria-label="Ưu đãi đặt cọc">
+        <button type="button" class="modal-close" id="depositClose" aria-label="Đóng">×</button>
+
+        <div id="depositOffer">
+          <div class="deposit-badge">🎁 Ưu đãi đặc biệt</div>
+          <h2>Đặt cọc ngay — nhận ưu đãi!</h2>
+          <p class="deposit-lead">Thanh toán trước <strong>50% giá trị thuê</strong> để giữ xe và nhận ngay:</p>
+          <ul class="perk-list">
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg>
+              Miễn phí vệ sinh xe
+            </li>
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg>
+              Thuê ghế trẻ em với giá ưu đãi
+            </li>
+          </ul>
+          <div class="deposit-amount">
+            <span>Số tiền đặt cọc (50%)</span>
+            <strong id="depositAmount">0đ</strong>
+          </div>
+          <button class="primary-button" id="depositAccept" type="button">Đặt cọc ngay để nhận ưu đãi</button>
+          <button class="ghost-button" id="depositLater" type="button">Để sau</button>
+        </div>
+
+        <div id="depositQr" hidden>
+          <h2>Quét mã QR để đặt cọc</h2>
+          <p class="deposit-lead">Chuyển khoản <strong id="depositAmountQr">0đ</strong> (50% giá trị thuê)</p>
+          <div class="qr-frame">
+            <img id="qrImage" alt="Mã QR thanh toán đặt cọc" hidden>
+            <div id="qrPlaceholder" class="qr-placeholder">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3V3Zm2 2v4h4V5H5Zm8-2h8v8h-8V3Zm2 2v4h4V5h-4ZM3 13h8v8H3v-8Zm2 2v4h4v-4H5Zm13-2h3v3h-3v-3Zm-5 0h3v3h-3v-3Zm5 5h3v3h-3v-3Zm-5 0h3v3h-3v-3Z"/></svg>
+              <span>Mã QR sẽ được cập nhật</span>
+            </div>
+          </div>
+          <p class="qr-note">Nội dung chuyển khoản: <strong id="qrRef"></strong></p>
+          <button class="ghost-button" id="qrDone" type="button">Đã chuyển khoản / Đóng</button>
+        </div>
+      </div>
     </div>
 
     <!-- Modal đăng nhập quản trị -->
@@ -273,5 +373,6 @@
     <script src="assets/cars-data.js"></script>
     <script src="assets/app.js"></script>
     <script src="assets/lightbox.js"></script>
+    <!-- KBA Car Rental v2 -->
   </body>
 </html>

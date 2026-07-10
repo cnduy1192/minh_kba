@@ -24,7 +24,8 @@ const HEADERS = [
   "Tổng giá thuê",
   "Số hợp đồng",
   "Tổng giá thuê APP",
-  "Tiền còn lại APP"
+  "Tài sản thế chấp",
+  "Tiền cọc (50%)"
 ];
 
 function doPost(e) {
