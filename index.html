@@ -33,10 +33,10 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v3h6V2h2v3h3v16H4V5h3V2Zm11 9H6v8h12v-8Z"/></svg>
             <span>Đặt xe</span>
           </a>
-          <a href="#customer-form" aria-label="Khách hàng">
+          <button type="button" id="accountNav" aria-label="Tài khoản khách hàng">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm-9 9a9 9 0 0 1 18 0H3Z"/></svg>
-            <span>Khách hàng</span>
-          </a>
+            <span>Tài khoản</span>
+          </button>
           <button type="button" id="loginNav" aria-label="Đăng nhập quản trị">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7 9.6 8.4 12.2 11H2v2h10.2l-2.6 2.6L11 17l5-5-5-5Zm9-4H12a2 2 0 0 0-2 2v3h2V5h8v14h-8v-3h-2v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z"/></svg>
             <span>Đăng nhập</span>
@@ -211,7 +211,8 @@
                   <input id="endTime" type="time" step="1800">
                 </label>
               </div>
-              <p class="dt-hint">Mặc định: kết thúc vào cùng giờ của ngày kế tiếp (1 ngày thuê).</p>
+              <p class="dt-hint">Mặc định: kết thúc vào cùng giờ của ngày kế tiếp (1 ngày thuê).
+              Giờ phát sinh vượt ngày: dưới 6h tính nửa ngày, từ 6h tính 1 ngày.</p>
             </div>
 
             <div class="price-box">
@@ -267,6 +268,15 @@
             <button class="primary-button" type="submit">Gửi thông tin thuê xe</button>
             <p id="formMessage" class="form-message" role="status"></p>
           </form>
+
+          <!-- Danh sách đơn đã đặt (khách thấy đơn của mình, admin thấy tất cả) -->
+          <section class="bookings-card glass-card" id="bookingsSection" hidden>
+            <div class="bookings-head">
+              <h2 id="bookingsTitle">Đơn đã đặt</h2>
+              <span id="bookingsCount" class="bookings-count"></span>
+            </div>
+            <div id="bookingsList" class="bookings-list"></div>
+          </section>
         </aside>
       </main>
     </div>
@@ -302,17 +312,24 @@
         <div id="depositOffer">
           <div class="deposit-badge">🎁 Ưu đãi đặc biệt</div>
           <h2>Đặt cọc ngay — nhận ưu đãi!</h2>
-          <p class="deposit-lead">Thanh toán trước <strong>50% giá trị thuê</strong> để giữ xe và nhận ngay:</p>
-          <ul class="perk-list">
-            <li>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg>
-              Miễn phí vệ sinh xe
-            </li>
-            <li>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z"/></svg>
-              Thuê ghế trẻ em với giá ưu đãi
-            </li>
-          </ul>
+          <p class="deposit-lead">Thanh toán trước <strong>50% giá trị thuê</strong> để giữ xe và
+          <strong>chọn 1 trong 2 ưu đãi</strong>:</p>
+          <div class="perk-options">
+            <label class="radio-card">
+              <input type="radio" name="perkChoice" value="Miễn phí vệ sinh xe" checked>
+              <span>
+                <strong>Miễn phí vệ sinh xe</strong>
+                <small>Vệ sinh nội – ngoại thất khi trả xe</small>
+              </span>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="perkChoice" value="Thuê ghế trẻ em giá ưu đãi">
+              <span>
+                <strong>Thuê ghế trẻ em giá ưu đãi</strong>
+                <small>Dành cho gia đình có bé nhỏ</small>
+              </span>
+            </label>
+          </div>
           <div class="deposit-amount">
             <span>Số tiền đặt cọc (50%)</span>
             <strong id="depositAmount">0đ</strong>
@@ -334,6 +351,88 @@
           <p class="qr-note">Nội dung chuyển khoản: <strong id="qrRef"></strong></p>
           <button class="ghost-button" id="qrDone" type="button">Đã chuyển khoản / Đóng</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal tài khoản khách hàng -->
+    <div class="modal-overlay" id="accountModal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="Tài khoản khách hàng">
+        <button type="button" class="modal-close" id="accountClose" aria-label="Đóng">×</button>
+
+        <div id="authView">
+          <div class="auth-tabs" role="tablist">
+            <button type="button" class="active" id="tabLogin">Đăng nhập</button>
+            <button type="button" id="tabRegister">Đăng ký</button>
+          </div>
+
+          <form id="customerLoginForm" class="admin-login-form">
+            <label>Số điện thoại<input id="loginPhone" required type="tel" autocomplete="tel"></label>
+            <label>Mật khẩu<input id="loginPass" required type="password" autocomplete="current-password"></label>
+            <button class="primary-button" type="submit">Đăng nhập</button>
+            <button class="link-button" id="forgotPass" type="button">Quên mật khẩu?</button>
+          </form>
+
+          <form id="customerRegisterForm" class="admin-login-form" hidden>
+            <label>Họ và Tên<input id="regName" required autocomplete="name"></label>
+            <label>Số điện thoại (dùng để đăng nhập)<input id="regPhone" required type="tel" autocomplete="tel"></label>
+            <label>Email — dùng để khôi phục mật khẩu<input id="regEmail" type="email" autocomplete="email" placeholder="vd: ten@gmail.com"></label>
+            <label>Mật khẩu<input id="regPass" required type="password" minlength="4" autocomplete="new-password"></label>
+            <button class="primary-button" type="submit">Tạo tài khoản</button>
+          </form>
+
+          <p id="authMessage" class="form-message" role="status"></p>
+        </div>
+
+        <!-- Quên mật khẩu -->
+        <div id="resetView" hidden>
+          <p class="eyebrow">Khôi phục mật khẩu</p>
+          <h2>Quên mật khẩu</h2>
+
+          <form id="resetRequestForm" class="admin-login-form">
+            <label>Số điện thoại đã đăng ký<input id="resetPhone" required type="tel" autocomplete="tel"></label>
+            <button class="primary-button" type="submit">Gửi mã về email</button>
+          </form>
+
+          <form id="resetConfirmForm" class="admin-login-form" hidden>
+            <label>Mã xác nhận (6 số trong email)<input id="resetCode" required inputmode="numeric" minlength="6" maxlength="6"></label>
+            <label>Mật khẩu mới<input id="resetNewPass" required type="password" minlength="4" autocomplete="new-password"></label>
+            <button class="primary-button" type="submit">Đặt lại mật khẩu</button>
+          </form>
+
+          <p id="resetMessage" class="form-message" role="status"></p>
+          <button class="link-button" id="backToLogin" type="button">← Quay lại đăng nhập</button>
+        </div>
+
+        <div id="profileView" hidden>
+          <p class="eyebrow">Tài khoản của bạn</p>
+          <h2 id="profileName"></h2>
+          <p id="profilePhone" class="profile-sub"></p>
+
+          <div class="loyalty-box">
+            <div class="loyalty-head">
+              <span>Chuyến đã thuê</span>
+              <strong id="tripCount">0 / 10</strong>
+            </div>
+            <div class="loyalty-bar"><span id="loyaltyFill"></span></div>
+            <p id="loyaltyNote" class="loyalty-note">Đủ 10 chuyến — tặng 1 ngày thuê miễn phí!</p>
+          </div>
+
+          <button class="ghost-button" id="customerLogout" type="button">Đăng xuất</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal chi tiết đơn thuê -->
+    <div class="modal-overlay" id="bookingDetailModal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="Chi tiết đơn thuê">
+        <button type="button" class="modal-close" id="bookingDetailClose" aria-label="Đóng">×</button>
+        <p class="eyebrow">Đơn thuê xe</p>
+        <h2 id="bookingDetailTitle"></h2>
+        <div id="bookingDetailBody" class="booking-detail"></div>
+        <button class="primary-button print-btn" id="detailPrintBtn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8V4H6v4H4a2 2 0 0 0-2 2v7h4v4h12v-4h4v-7a2 2 0 0 0-2-2h-2ZM8 6h8v2H8V6Zm8 13H8v-4h8v4Zm2-6h-1v-1H7v1H6v0H4v-3h16v3h-2Z"/></svg>
+          In Hợp đồng
+        </button>
       </div>
     </div>
 
@@ -371,6 +470,7 @@
 
     <script src="assets/config.js"></script>
     <script src="assets/cars-data.js"></script>
+    <script src="assets/contract.js"></script>
     <script src="assets/app.js"></script>
     <script src="assets/lightbox.js"></script>
     <!-- KBA Car Rental v2 -->

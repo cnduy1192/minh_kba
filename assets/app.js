@@ -24,12 +24,17 @@ const DATA_FIELDS = [
   "Số hợp đồng",
   "Tổng giá thuê APP",
   "Tài sản thế chấp",
-  "Tiền cọc (50%)"
+  "Tiền cọc (50%)",
+  "Ưu đãi",
+  "Trạng thái cọc"
 ];
 
 const FLEET_STORAGE_KEY = "kbaRentalFleet";
 const BOOKINGS_STORAGE_KEY = "kbaRentalBookings";
 const ADMIN_SESSION_KEY = "kbaSuperAdminSession";
+const CUSTOMERS_KEY = "kbaCustomers";
+const CUSTOMER_SESSION_KEY = "kbaCustomerSession";
+const LOYALTY_TARGET = 10; // đủ 10 chuyến tặng 1 ngày thuê
 const DEFAULT_CAR_IMAGE = "https://images.unsplash.com/photo-1549924231-f129b911e442?auto=format&fit=crop&w=900&q=80";
 
 /* ---- Image library (naming convention) ----
@@ -121,6 +126,46 @@ const els = {
   qrPlaceholder: document.querySelector("#qrPlaceholder"),
   qrRef: document.querySelector("#qrRef"),
   qrDone: document.querySelector("#qrDone"),
+  accountNav: document.querySelector("#accountNav"),
+  accountModal: document.querySelector("#accountModal"),
+  accountClose: document.querySelector("#accountClose"),
+  authView: document.querySelector("#authView"),
+  profileView: document.querySelector("#profileView"),
+  tabLogin: document.querySelector("#tabLogin"),
+  tabRegister: document.querySelector("#tabRegister"),
+  customerLoginForm: document.querySelector("#customerLoginForm"),
+  customerRegisterForm: document.querySelector("#customerRegisterForm"),
+  loginPhone: document.querySelector("#loginPhone"),
+  loginPass: document.querySelector("#loginPass"),
+  regName: document.querySelector("#regName"),
+  regPhone: document.querySelector("#regPhone"),
+  regEmail: document.querySelector("#regEmail"),
+  regPass: document.querySelector("#regPass"),
+  authMessage: document.querySelector("#authMessage"),
+  forgotPass: document.querySelector("#forgotPass"),
+  resetView: document.querySelector("#resetView"),
+  resetRequestForm: document.querySelector("#resetRequestForm"),
+  resetConfirmForm: document.querySelector("#resetConfirmForm"),
+  resetPhone: document.querySelector("#resetPhone"),
+  resetCode: document.querySelector("#resetCode"),
+  resetNewPass: document.querySelector("#resetNewPass"),
+  resetMessage: document.querySelector("#resetMessage"),
+  backToLogin: document.querySelector("#backToLogin"),
+  detailPrintBtn: document.querySelector("#detailPrintBtn"),
+  profileName: document.querySelector("#profileName"),
+  profilePhone: document.querySelector("#profilePhone"),
+  tripCount: document.querySelector("#tripCount"),
+  loyaltyFill: document.querySelector("#loyaltyFill"),
+  loyaltyNote: document.querySelector("#loyaltyNote"),
+  customerLogout: document.querySelector("#customerLogout"),
+  bookingsSection: document.querySelector("#bookingsSection"),
+  bookingsTitle: document.querySelector("#bookingsTitle"),
+  bookingsCount: document.querySelector("#bookingsCount"),
+  bookingsList: document.querySelector("#bookingsList"),
+  bookingDetailModal: document.querySelector("#bookingDetailModal"),
+  bookingDetailClose: document.querySelector("#bookingDetailClose"),
+  bookingDetailTitle: document.querySelector("#bookingDetailTitle"),
+  bookingDetailBody: document.querySelector("#bookingDetailBody"),
   totalPrice: document.querySelector("#totalPrice"),
   priceNote: document.querySelector("#priceNote"),
   acceptPrice: document.querySelector("#acceptPrice"),
@@ -195,7 +240,9 @@ function diffDays(start, end) {
 }
 
 /* ---- Thuê theo ngày + giờ ----
-   Thời lượng tối thiểu 1 ngày. Phần lẻ tính theo giờ = giá ngày / 24. */
+   Quy tắc: tối thiểu 1 ngày. Giờ phát sinh vượt ngày tròn:
+   - dưới 6 giờ  → tính phí nửa ngày
+   - từ 6 giờ trở lên → tính phí 1 ngày */
 function bookingStartMs() {
   if (!els.startDate.value) return NaN;
   return new Date(`${els.startDate.value}T${els.startTime.value || "00:00"}`).getTime();
@@ -210,11 +257,14 @@ function bookingDuration() {
   const start = bookingStartMs();
   const end = bookingEndMs();
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-  const totalHours = Math.max((end - start) / 3600000, 24); // tối thiểu 1 ngày
-  let days = Math.floor(totalHours / 24);
-  let hours = Math.ceil(totalHours - days * 24);
-  if (hours >= 24) { days += 1; hours = 0; }
-  return { days, hours, totalHours };
+  const totalHours = (end - start) / 3600000;
+  const fullDays = Math.floor(totalHours / 24);
+  const remHours = Math.round((totalHours - fullDays * 24) * 100) / 100;
+  let extra = 0; // 0 | 0.5 | 1 ngày phát sinh
+  if (remHours > 0.01) extra = remHours < 6 ? 0.5 : 1;
+  let billedDays = fullDays + extra;
+  if (billedDays < 1) billedDays = 1; // tối thiểu 1 ngày
+  return { fullDays, remHours, extra, billedDays, totalHours };
 }
 
 // Mặc định: kết thúc vào cùng giờ của ngày kế tiếp
@@ -270,13 +320,24 @@ function isCarSelectable(car) {
 }
 
 function calcBooking() {
-  if (!state.selectedCar) return { days: 0, hours: 0, total: 0 };
+  if (!state.selectedCar) return { total: 0 };
   const duration = bookingDuration();
-  if (!duration) return { days: 0, hours: 0, total: 0 };
+  if (!duration) return { total: 0 };
   const rate = Number(state.selectedCar.dailyRate || 0);
-  const hourRate = Math.round(rate / 24 / 1000) * 1000;
-  const total = duration.days * rate + duration.hours * hourRate;
-  return { days: duration.days, hours: duration.hours, total, hourRate };
+  const total = Math.round(duration.billedDays * rate);
+  return { ...duration, total, rate };
+}
+
+function billingNote(calc) {
+  if (!calc || !calc.total) return "";
+  const { fullDays, remHours, extra, billedDays, rate } = calc;
+  if (billedDays === 1 && fullDays <= 1 && !extra) return `1 ngày x ${formatMoney(rate)}`;
+  const parts = [];
+  if (fullDays > 0) parts.push(`${fullDays} ngày`);
+  if (extra === 0.5) parts.push(`nửa ngày (phát sinh ${Math.round(remHours)}h < 6h)`);
+  if (extra === 1) parts.push(`1 ngày (phát sinh ${Math.round(remHours)}h ≥ 6h)`);
+  if (!parts.length) parts.push("1 ngày (tối thiểu)");
+  return `${parts.join(" + ")} = ${billedDays} ngày x ${formatMoney(rate)}`;
 }
 
 function applyFleetStore() {
@@ -407,18 +468,16 @@ function renderBooking() {
     `;
   }
 
-  const { days, hours, total, hourRate } = calcBooking();
+  const calc = calcBooking();
+  const total = calc.total;
   els.totalPrice.textContent = formatMoney(total);
-  if (car && total) {
-    const parts = [`${days} ngày x ${formatMoney(car.dailyRate)}`];
-    if (hours) parts.push(`${hours} giờ x ${formatMoney(hourRate)}`);
-    els.priceNote.textContent = parts.join(" + ");
-  } else {
-    els.priceNote.textContent = "Chọn xe và thời gian thuê để xem giá.";
-  }
+  els.priceNote.textContent = (car && total)
+    ? billingNote(calc)
+    : "Chọn xe và thời gian thuê để xem giá.";
 
   const canShowForm = Boolean(car && total && els.acceptPrice.checked);
   els.customerForm.hidden = !canShowForm;
+  if (!els.customerForm.hidden) prefillCustomerForm();
 }
 
 function renderAdminState() {
@@ -426,6 +485,7 @@ function renderAdminState() {
   els.loginNav.hidden = state.isAdmin;
   els.manageNav.hidden = !state.isAdmin;
   if (state.isAdmin) renderAdminCarList();
+  renderBookingsList();
 }
 
 function openLoginModal() {
@@ -648,7 +708,292 @@ function buildPayload(formData) {
   }, {});
 }
 
-/* ---- Popup ưu đãi đặt cọc + QR 50% ---- */
+/* ============================================================
+   TÀI KHOẢN KHÁCH HÀNG (đăng ký bằng SĐT — lưu trên trình duyệt)
+   ============================================================ */
+// Gọi API Google Apps Script (POST text/plain — không preflight, đọc được kết quả)
+async function api(action, data = {}) {
+  const endpoint = window.APP_CONFIG?.GOOGLE_SHEET_ENDPOINT;
+  if (!endpoint) return null;
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, ...data })
+    });
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function getCustomers() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomers(list) {
+  localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(list));
+}
+
+function normalizePhone(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+// Phiên đăng nhập: lưu {name, phone, email} trên trình duyệt
+function currentCustomer() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOMER_SESSION_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function setCustomerSession(customer) {
+  if (customer) {
+    localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(customer));
+  } else {
+    localStorage.removeItem(CUSTOMER_SESSION_KEY);
+  }
+}
+
+// Lịch sử thuê từ Google Sheet (đồng bộ mọi thiết bị)
+let serverHistory = null;
+
+async function fetchServerHistory() {
+  const customer = currentCustomer();
+  if (!customer) { serverHistory = null; return; }
+  const result = await api("history", { phone: customer.phone });
+  if (result?.ok && Array.isArray(result.bookings)) {
+    serverHistory = result.bookings;
+    renderAccountModal();
+    renderBookingsList();
+  }
+}
+
+// Gộp lịch sử trên Sheet + đơn lưu trên máy (khử trùng lặp theo Số hợp đồng)
+function customerBookings(phone) {
+  const p = normalizePhone(phone);
+  const local = savedBookings().filter((b) => normalizePhone(b["SĐT"]) === p);
+  if (!serverHistory) return local;
+  const seen = new Set(serverHistory.map((b) => b["Số hợp đồng"]));
+  return [...serverHistory, ...local.filter((b) => !seen.has(b["Số hợp đồng"]))];
+}
+
+function setAuthMessage(text, type) {
+  els.authMessage.className = `form-message${type ? ` ${type}` : ""}`;
+  els.authMessage.textContent = text || "";
+}
+
+function openAccountModal() {
+  renderAccountModal();
+  els.accountModal.hidden = false;
+}
+
+function closeAccountModal() {
+  els.accountModal.hidden = true;
+  setAuthMessage("");
+}
+
+function switchAuthTab(mode) {
+  const isLogin = mode === "login";
+  els.tabLogin.classList.toggle("active", isLogin);
+  els.tabRegister.classList.toggle("active", !isLogin);
+  els.customerLoginForm.hidden = !isLogin;
+  els.customerRegisterForm.hidden = isLogin;
+  setAuthMessage("");
+}
+
+function renderAccountModal() {
+  const customer = currentCustomer();
+  els.resetView.hidden = true;
+  els.authView.hidden = Boolean(customer);
+  els.profileView.hidden = !customer;
+  if (!customer) return;
+
+  const trips = customerBookings(customer.phone).length;
+  const cycles = trips % LOYALTY_TARGET;
+  const rewards = Math.floor(trips / LOYALTY_TARGET);
+  els.profileName.textContent = customer.name;
+  els.profilePhone.textContent = `SĐT: ${customer.phone}`;
+  els.tripCount.textContent = `${trips} chuyến`;
+  els.loyaltyFill.style.width = `${Math.min((cycles / LOYALTY_TARGET) * 100, 100)}%`;
+  if (rewards > 0 && cycles === 0) {
+    els.loyaltyNote.textContent = `🎉 Chúc mừng! Bạn có ${rewards} ngày thuê miễn phí — liên hệ hotline để sử dụng.`;
+  } else if (rewards > 0) {
+    els.loyaltyNote.textContent = `Bạn có ${rewards} ngày thuê miễn phí. Còn ${LOYALTY_TARGET - cycles} chuyến nữa để nhận thêm 1 ngày!`;
+  } else {
+    els.loyaltyNote.textContent = `Còn ${LOYALTY_TARGET - cycles} chuyến nữa để được tặng 1 ngày thuê miễn phí!`;
+  }
+}
+
+function finishAuth(customer) {
+  setCustomerSession(customer);
+  els.customerRegisterForm.reset();
+  els.customerLoginForm.reset();
+  renderAccountModal();
+  renderBookingsList();
+  prefillCustomerForm();
+  fetchServerHistory();
+}
+
+async function registerCustomer(event) {
+  event.preventDefault();
+  const name = els.regName.value.trim();
+  const phone = normalizePhone(els.regPhone.value);
+  const email = els.regEmail.value.trim();
+  const pass = els.regPass.value;
+  if (phone.length < 9) {
+    setAuthMessage("Số điện thoại không hợp lệ.", "error");
+    return;
+  }
+
+  setAuthMessage("Đang tạo tài khoản...");
+  const result = await api("register", { name, phone, email, pass });
+
+  if (result) {
+    if (!result.ok) {
+      setAuthMessage(result.error === "exists"
+        ? "SĐT này đã có tài khoản. Hãy đăng nhập."
+        : "Không tạo được tài khoản. Kiểm tra lại thông tin.", "error");
+      return;
+    }
+    finishAuth({ name: result.name, phone: result.phone, email: result.email });
+    return;
+  }
+
+  // Fallback: chưa kết nối Google Sheet → lưu trên trình duyệt
+  const customers = getCustomers();
+  if (customers.some((c) => c.phone === phone)) {
+    setAuthMessage("SĐT này đã có tài khoản. Hãy đăng nhập.", "error");
+    return;
+  }
+  customers.push({ name, phone, email, pass, createdAt: new Date().toISOString() });
+  saveCustomers(customers);
+  finishAuth({ name, phone, email });
+}
+
+async function loginCustomer(event) {
+  event.preventDefault();
+  const phone = normalizePhone(els.loginPhone.value);
+  const pass = els.loginPass.value;
+
+  setAuthMessage("Đang đăng nhập...");
+  const result = await api("login", { phone, pass });
+
+  if (result) {
+    if (!result.ok) {
+      setAuthMessage(result.error === "not-found"
+        ? "SĐT chưa có tài khoản. Hãy đăng ký."
+        : "SĐT hoặc mật khẩu không đúng.", "error");
+      return;
+    }
+    finishAuth({ name: result.name, phone: result.phone, email: result.email });
+    return;
+  }
+
+  // Fallback local
+  const customer = getCustomers().find((c) => c.phone === phone && c.pass === pass);
+  if (!customer) {
+    setAuthMessage("SĐT hoặc mật khẩu không đúng.", "error");
+    return;
+  }
+  finishAuth({ name: customer.name, phone: customer.phone, email: customer.email || "" });
+}
+
+function logoutCustomer() {
+  setCustomerSession(null);
+  serverHistory = null;
+  renderAccountModal();
+  switchAuthTab("login");
+  renderBookingsList();
+}
+
+/* ---- Quên mật khẩu: gửi mã 6 số về email đã đăng ký ---- */
+function setResetMessage(text, type) {
+  els.resetMessage.className = `form-message${type ? ` ${type}` : ""}`;
+  els.resetMessage.textContent = text || "";
+}
+
+function showResetView(show) {
+  els.resetView.hidden = !show;
+  els.authView.hidden = show || Boolean(currentCustomer());
+  if (show) {
+    els.resetConfirmForm.hidden = true;
+    els.resetRequestForm.hidden = false;
+    setResetMessage("");
+  }
+}
+
+async function requestPasswordReset(event) {
+  event.preventDefault();
+  const phone = normalizePhone(els.resetPhone.value);
+  setResetMessage("Đang gửi mã...");
+
+  const result = await api("resetRequest", { phone });
+  if (!result) {
+    setResetMessage("Website chưa kết nối Google Sheet. Vui lòng liên hệ hotline 0936 848 404 (Zalo) để được cấp lại mật khẩu.", "error");
+    return;
+  }
+  if (!result.ok) {
+    if (result.error === "not-found") {
+      setResetMessage("SĐT này chưa có tài khoản.", "error");
+    } else if (result.error === "no-email") {
+      setResetMessage("Tài khoản chưa đăng ký email khôi phục. Vui lòng liên hệ hotline / Zalo 0936 848 404 để được cấp lại mật khẩu.", "error");
+    } else {
+      setResetMessage("Không gửi được mã. Thử lại sau.", "error");
+    }
+    return;
+  }
+  setResetMessage(`Đã gửi mã 6 số tới email ${result.maskedEmail}. Mã có hiệu lực 15 phút.`, "success");
+  els.resetConfirmForm.hidden = false;
+}
+
+async function confirmPasswordReset(event) {
+  event.preventDefault();
+  const phone = normalizePhone(els.resetPhone.value);
+  const code = els.resetCode.value.trim();
+  const newPass = els.resetNewPass.value;
+  setResetMessage("Đang xác nhận...");
+
+  const result = await api("resetConfirm", { phone, code, newPass });
+  if (!result || !result.ok) {
+    const reason = result?.error;
+    setResetMessage(reason === "expired"
+      ? "Mã đã hết hạn. Bấm gửi lại mã mới."
+      : "Mã xác nhận không đúng.", "error");
+    return;
+  }
+  els.resetRequestForm.reset();
+  els.resetConfirmForm.reset();
+  showResetView(false);
+  finishAuth({ name: result.name, phone: result.phone, email: result.email });
+  setAuthMessage("Đã đặt lại mật khẩu và đăng nhập thành công.", "success");
+}
+
+// Tự điền thông tin khách đã đăng nhập vào form thuê xe
+function prefillCustomerForm() {
+  const customer = currentCustomer();
+  if (!customer || els.customerForm.hidden) return;
+  const nameInput = els.customerForm.elements["Họ và Tên"];
+  const phoneInput = els.customerForm.elements["SĐT"];
+  if (nameInput && !nameInput.value) nameInput.value = customer.name;
+  if (phoneInput && !phoneInput.value) phoneInput.value = customer.phone;
+}
+
+/* ============================================================
+   POPUP ĐẶT CỌC — chọn 1 trong 2 ưu đãi, gửi Sheet sau khi chọn
+   ============================================================ */
+let pendingBooking = null; // đơn đang chờ khách chọn cọc/ưu đãi
+
+function selectedPerk() {
+  const checked = document.querySelector('input[name="perkChoice"]:checked');
+  return checked ? checked.value : "";
+}
+
 function openDepositModal(depositValue, contractNo) {
   els.depositAmount.textContent = formatMoney(depositValue);
   els.depositAmountQr.textContent = formatMoney(depositValue);
@@ -672,52 +1017,132 @@ function showDepositQr() {
   els.depositQr.hidden = false;
 }
 
-function closeDepositModal() {
-  els.depositModal.hidden = true;
-}
+// Gửi đơn lên Google Sheet + lưu trên máy (chỉ chạy 1 lần cho mỗi đơn)
+async function finalizeBooking(depositChosen) {
+  if (!pendingBooking) return;
+  const payload = pendingBooking;
+  pendingBooking = null;
 
-async function submitBooking(event) {
-  event.preventDefault();
-  els.formMessage.className = "form-message";
-  els.formMessage.textContent = "Đang gửi thông tin...";
+  payload["Ưu đãi"] = depositChosen ? selectedPerk() : "";
+  payload["Trạng thái cọc"] = depositChosen ? "Đã quét QR đặt cọc" : "Chưa đặt cọc";
 
-  const endpoint = window.APP_CONFIG?.GOOGLE_SHEET_ENDPOINT;
-  const payload = buildPayload(new FormData(els.customerForm));
-  const depositValue = Number(payload["Tiền cọc (50%)"] || 0);
-  const contractNo = payload["Số hợp đồng"];
-  const localBooking = { ...payload, carCode: state.selectedCar.code, savedAt: new Date().toISOString() };
   const saved = savedBookings();
-  saved.push(localBooking);
+  saved.push({ ...payload, savedAt: new Date().toISOString() });
   localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(saved));
 
-  const finishSuccess = (message) => {
-    els.formMessage.classList.add("success");
-    els.formMessage.textContent = message;
-    els.customerForm.reset();
-    els.acceptPrice.checked = false;
-    renderTimeline();
-    renderCars();
-    renderBooking();
-    openDepositModal(depositValue, contractNo);
-  };
+  renderTimeline();
+  renderCars();
+  renderBooking();
+  renderBookingsList();
 
-  if (!endpoint) {
-    finishSuccess("Đã lưu tạm trên trình duyệt.");
-    return;
-  }
+  const sheetPayload = { ...payload };
+  delete sheetPayload.carCode;
+  await api("booking", sheetPayload); // đơn vẫn được lưu trên máy nếu gửi lỗi
+}
 
-  try {
-    await fetch(endpoint, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload)
+function acceptDeposit() {
+  showDepositQr();
+}
+
+function closeDepositModal(depositChosen) {
+  els.depositModal.hidden = true;
+  finalizeBooking(Boolean(depositChosen));
+}
+
+function submitBooking(event) {
+  event.preventDefault();
+  els.formMessage.className = "form-message success";
+  els.formMessage.textContent = "Đã nhận thông tin đặt xe!";
+
+  const payload = buildPayload(new FormData(els.customerForm));
+  payload.carCode = state.selectedCar.code;
+  pendingBooking = payload;
+
+  els.customerForm.reset();
+  els.acceptPrice.checked = false;
+  openDepositModal(Number(payload["Tiền cọc (50%)"] || 0), payload["Số hợp đồng"]);
+}
+
+/* ============================================================
+   DANH SÁCH ĐƠN ĐÃ ĐẶT (tab Đặt xe) + CHI TIẾT ĐƠN
+   ============================================================ */
+const DETAIL_FIELDS = [
+  "Số hợp đồng", "Họ và Tên", "SĐT", "Xe cho thuê", "Biến số xe",
+  "Ngày bắt đầu", "Ngày kết thúc", "Đơn Giá thuê", "Tổng giá thuê",
+  "Tiền cọc (50%)", "Trạng thái cọc", "Ưu đãi", "Tài sản thế chấp",
+  "Số CCCD/Passport", "Số GPLX", "Địa chỉ liên hệ"
+];
+
+function visibleBookings() {
+  const all = savedBookings();
+  if (state.isAdmin) return all;
+  const customer = currentCustomer();
+  if (customer) return customerBookings(customer.phone);
+  return all; // đơn đặt từ trình duyệt này
+}
+
+function renderBookingsList() {
+  const list = visibleBookings().slice().reverse(); // mới nhất lên đầu
+  els.bookingsSection.hidden = list.length === 0;
+  if (!list.length) return;
+
+  els.bookingsTitle.textContent = state.isAdmin ? "Tất cả đơn đặt xe" : "Đơn đã đặt của bạn";
+  els.bookingsCount.textContent = `${list.length} đơn`;
+
+  els.bookingsList.innerHTML = list.map((booking, index) => {
+    const deposit = booking["Trạng thái cọc"] === "Đã quét QR đặt cọc";
+    return `
+      <div class="booking-row" data-booking-index="${index}" role="button" tabindex="0"
+        aria-label="Xem chi tiết đơn ${booking["Số hợp đồng"] || ""}">
+        <span class="booking-row-main">
+          <strong>${booking["Xe cho thuê"] || "Xe"}</strong>
+          <small>${state.isAdmin ? `${booking["Họ và Tên"] || ""} · ` : ""}${booking["Ngày bắt đầu"] || ""} → ${booking["Ngày kết thúc"] || ""}</small>
+        </span>
+        <span class="booking-row-side">
+          <strong>${formatMoney(booking["Tổng giá thuê"])}</strong>
+          <small class="${deposit ? "dep-ok" : "dep-no"}">${deposit ? "● Đã cọc" : "○ Chưa cọc"}</small>
+        </span>
+        <button type="button" class="row-print" data-print-index="${index}" title="In Hợp đồng" aria-label="In hợp đồng">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8V4H6v4H4a2 2 0 0 0-2 2v7h4v4h12v-4h4v-7a2 2 0 0 0-2-2h-2ZM8 6h8v2H8V6Zm8 13H8v-4h8v4Zm4-6h-2v-1H6v1H4v-3h16v3Z"/></svg>
+          <span>In HĐ</span>
+        </button>
+      </div>
+    `;
+  }).join("");
+
+  els.bookingsList.querySelectorAll(".booking-row").forEach((row) => {
+    const booking = list[Number(row.dataset.bookingIndex)];
+    row.addEventListener("click", () => openBookingDetail(booking));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") openBookingDetail(booking);
     });
-    finishSuccess("Đã gửi thông tin.");
-  } catch {
-    els.formMessage.classList.add("error");
-    els.formMessage.textContent = "Chưa gửi được dữ liệu.";
-  }
+  });
+  els.bookingsList.querySelectorAll("[data-print-index]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      window.printContract(list[Number(button.dataset.printIndex)]);
+    });
+  });
+}
+
+let currentDetailBooking = null;
+
+function openBookingDetail(booking) {
+  currentDetailBooking = booking;
+  els.bookingDetailTitle.textContent = booking["Xe cho thuê"] || "Chi tiết đơn";
+  els.bookingDetailBody.innerHTML = DETAIL_FIELDS
+    .filter((field) => booking[field] !== undefined && booking[field] !== "")
+    .map((field) => {
+      let value = booking[field];
+      if (["Đơn Giá thuê", "Tổng giá thuê", "Tiền cọc (50%)"].includes(field)) value = formatMoney(value);
+      return `<div class="detail-row"><span>${field}</span><strong>${value}</strong></div>`;
+    }).join("");
+  els.bookingDetailModal.hidden = false;
+}
+
+function closeBookingDetail() {
+  els.bookingDetailModal.hidden = true;
+  currentDetailBooking = null;
 }
 
 function bindEvents() {
@@ -764,13 +1189,45 @@ function bindEvents() {
     element.addEventListener("input", () => handleDateChange("booking"));
   });
 
-  // Popup đặt cọc
-  els.depositAccept.addEventListener("click", showDepositQr);
-  els.depositLater.addEventListener("click", closeDepositModal);
-  els.depositClose.addEventListener("click", closeDepositModal);
-  els.qrDone.addEventListener("click", closeDepositModal);
+  // Popup đặt cọc: "Đặt cọc ngay" → QR; đóng ở bước QR = đã cọc, ngược lại = chưa cọc
+  els.depositAccept.addEventListener("click", acceptDeposit);
+  els.depositLater.addEventListener("click", () => closeDepositModal(false));
+  els.depositClose.addEventListener("click", () => closeDepositModal(!els.depositQr.hidden));
+  els.qrDone.addEventListener("click", () => closeDepositModal(true));
   els.depositModal.addEventListener("click", (event) => {
-    if (event.target === els.depositModal) closeDepositModal();
+    if (event.target === els.depositModal) closeDepositModal(!els.depositQr.hidden);
+  });
+
+  // Tài khoản khách hàng
+  els.accountNav.addEventListener("click", openAccountModal);
+  els.accountClose.addEventListener("click", closeAccountModal);
+  els.accountModal.addEventListener("click", (event) => {
+    if (event.target === els.accountModal) closeAccountModal();
+  });
+  els.tabLogin.addEventListener("click", () => switchAuthTab("login"));
+  els.tabRegister.addEventListener("click", () => switchAuthTab("register"));
+  els.customerLoginForm.addEventListener("submit", loginCustomer);
+  els.customerRegisterForm.addEventListener("submit", registerCustomer);
+  els.customerLogout.addEventListener("click", logoutCustomer);
+
+  // Quên mật khẩu
+  els.forgotPass.addEventListener("click", () => showResetView(true));
+  els.backToLogin.addEventListener("click", () => {
+    showResetView(false);
+    switchAuthTab("login");
+  });
+  els.resetRequestForm.addEventListener("submit", requestPasswordReset);
+  els.resetConfirmForm.addEventListener("submit", confirmPasswordReset);
+
+  // In hợp đồng từ modal chi tiết
+  els.detailPrintBtn.addEventListener("click", () => {
+    if (currentDetailBooking) window.printContract(currentDetailBooking);
+  });
+
+  // Chi tiết đơn thuê
+  els.bookingDetailClose.addEventListener("click", closeBookingDetail);
+  els.bookingDetailModal.addEventListener("click", (event) => {
+    if (event.target === els.bookingDetailModal) closeBookingDetail();
   });
   els.acceptPrice.addEventListener("input", renderBooking);
   els.resetFilters.addEventListener("click", resetFilters);
@@ -789,8 +1246,11 @@ function bindEvents() {
     if (event.target === els.loginModal) closeLoginModal();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !els.loginModal.hidden) closeLoginModal();
-    if (event.key === "Escape" && !els.depositModal.hidden) closeDepositModal();
+    if (event.key !== "Escape") return;
+    if (!els.loginModal.hidden) closeLoginModal();
+    if (!els.depositModal.hidden) closeDepositModal(!els.depositQr.hidden);
+    if (!els.accountModal.hidden) closeAccountModal();
+    if (!els.bookingDetailModal.hidden) closeBookingDetail();
   });
 
   els.adminLoginForm.addEventListener("submit", (event) => {
@@ -922,6 +1382,8 @@ async function init() {
   renderCars();
   renderBooking();
   renderAdminState();
+  renderBookingsList();
+  fetchServerHistory(); // tải lịch sử thuê nếu khách đã đăng nhập
 }
 
 init().catch((error) => {
